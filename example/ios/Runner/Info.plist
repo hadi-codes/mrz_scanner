@@ -49,5 +49,8 @@
 	<true/>
 	    <key>NSCameraUsageDescription</key>
     <string>Allow Camera to scan MRZ</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Enable $(PRODUCT_NAME) to access your camera roll to upload your photos and save ones you have taken with the app</string>
+
 </dict>
 </plist>
