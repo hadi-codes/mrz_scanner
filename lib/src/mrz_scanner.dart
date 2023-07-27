@@ -15,6 +15,7 @@ class MRZScanner extends StatefulWidget {
     this.onQrCode,
     this.initialDirection = SensorPosition.back,
     required this.scannerType,
+    this.layoutBuilder,
   }) : super(key: controller);
 
   final Function(MRZResult mrzResult)? onMRZ;
@@ -24,6 +25,8 @@ class MRZScanner extends StatefulWidget {
   final ScannerType scannerType;
 
   final SensorPosition initialDirection;
+  final CameraLayoutBuilder? layoutBuilder;
+
   @override
   MRZScannerState createState() => MRZScannerState();
 }
@@ -47,6 +50,7 @@ class MRZScannerState extends State<MRZScanner> {
     return MRZCameraView(
       initialDirection: widget.initialDirection,
       onImage: _processImage,
+      layoutBuilder: widget.layoutBuilder,
     );
   }
 
