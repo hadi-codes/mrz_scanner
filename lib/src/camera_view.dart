@@ -28,7 +28,6 @@ class _MRZCameraViewState extends State<MRZCameraView> {
           const SizedBox.shrink(),
       sensorConfig: SensorConfig.single(
         sensor: Sensor.position(widget.initialDirection),
-        aspectRatio: CameraAspectRatios.ratio_1_1,
       ),
       imageAnalysisConfig: AnalysisConfig(
         // Android specific options
