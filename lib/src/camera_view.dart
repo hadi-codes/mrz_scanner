@@ -27,7 +27,7 @@ class _MRZCameraViewState extends State<MRZCameraView> {
           widget.layoutBuilder?.call(state, previewSize, previewRect) ??
           const SizedBox.shrink(),
       sensorConfig: SensorConfig.single(
-        sensor: Sensor.position(SensorPosition.back),
+        sensor: Sensor.position(widget.initialDirection),
         aspectRatio: CameraAspectRatios.ratio_1_1,
       ),
       imageAnalysisConfig: AnalysisConfig(
