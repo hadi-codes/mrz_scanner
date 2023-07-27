@@ -1,172 +1,94 @@
-import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
+import 'package:camerawesome/camerawesome_plugin.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
-import 'camera_overlay.dart';
 
 class MRZCameraView extends StatefulWidget {
   const MRZCameraView({
     Key? key,
     required this.onImage,
-    this.initialDirection = CameraLensDirection.back,
-    required this.showOverlay,
+    this.initialDirection = SensorPosition.back,
+    this.layoutBuilder,
   }) : super(key: key);
 
   final Function(InputImage inputImage) onImage;
-  final CameraLensDirection initialDirection;
-  final bool showOverlay;
+  final SensorPosition initialDirection;
+  final CameraLayoutBuilder? layoutBuilder;
 
   @override
   _MRZCameraViewState createState() => _MRZCameraViewState();
 }
 
 class _MRZCameraViewState extends State<MRZCameraView> {
-  CameraController? _controller;
-  int _cameraIndex = 0;
-  List<CameraDescription> cameras = [];
-
-  @override
-  void initState() {
-    super.initState();
-    initCamera();
-  }
-
-  initCamera() async {
-    cameras = await availableCameras();
-
-    try {
-      if (cameras.any((element) =>
-          element.lensDirection == widget.initialDirection &&
-          element.sensorOrientation == 90)) {
-        _cameraIndex = cameras.indexOf(
-          cameras.firstWhere(
-            (element) =>
-                element.lensDirection == widget.initialDirection &&
-                element.sensorOrientation == 90,
-          ),
-        );
-      } else {
-        _cameraIndex = cameras.indexOf(
-          cameras.firstWhere(
-            (element) => element.lensDirection == widget.initialDirection,
-          ),
-        );
-      }
-    } catch (e) {
-      print(e);
-    }
-
-    _startLiveFeed();
-  }
-
-  @override
-  void dispose() {
-    _stopLiveFeed();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: widget.showOverlay
-          ? MRZCameraOverlay(child: _liveFeedBody())
-          : _liveFeedBody(),
-    );
-  }
-
-  Widget _liveFeedBody() {
-    if (_controller?.value.isInitialized == false ||
-        _controller?.value.isInitialized == null) {
-      return Container();
-    }
-    if (_controller?.value.isInitialized == false) {
-      return Container();
-    }
-
-    final size = MediaQuery.of(context).size;
-    // calculate scale depending on screen and camera ratios
-    // this is actually size.aspectRatio / (1 / camera.aspectRatio)
-    // because camera preview size is received as landscape
-    // but we're calculating for portrait orientation
-    var scale = size.aspectRatio * _controller!.value.aspectRatio;
-    // to prevent scaling down, invert the value
-    if (scale < 1) scale = 1 / scale;
-
-    return Container(
-      color: Colors.black,
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Transform.scale(
-            scale: scale,
-            child: CameraPreview(_controller!),
-          ),
-        ],
+    return CameraAwesomeBuilder.previewOnly(
+      onImageForAnalysis: analyzeImage,
+      builder: (state, previewSize, previewRect) =>
+          widget.layoutBuilder?.call(state, previewSize, previewRect) ??
+          const SizedBox.shrink(),
+      sensorConfig: SensorConfig.single(
+        sensor: Sensor.position(SensorPosition.back),
+        aspectRatio: CameraAspectRatios.ratio_1_1,
+      ),
+      imageAnalysisConfig: AnalysisConfig(
+        // Android specific options
+        androidOptions: const AndroidAnalysisOptions.nv21(
+          // Target width (CameraX will chose the closest resolution to this width)
+          width: 1024,
+        ),
+        // Wether to start automatically the analysis (true by default)
+        autoStart: true,
+        // Max frames per second, null for no limit (default)
+        // maxFramesPerSecond: 15,
       ),
     );
   }
 
-  Future _startLiveFeed() async {
-    final camera = cameras[_cameraIndex];
-    _controller = CameraController(
-      camera,
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
-    _controller?.initialize().then((_) {
-      if (!mounted) {
-        return;
-      }
-      _controller?.startImageStream(_processCameraImage);
-      setState(() {});
-    });
+  Future analyzeImage(AnalysisImage img) async {
+    final imageInupt = img.toInputImage();
+    widget.onImage(imageInupt);
   }
+}
 
-  Future _stopLiveFeed() async {
-    await _controller?.stopImageStream();
-    await _controller?.dispose();
-    _controller = null;
-  }
-
-  Future _processCameraImage(CameraImage image) async {
-    final WriteBuffer allBytes = WriteBuffer();
-    for (final Plane plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
-    }
-    final bytes = allBytes.done().buffer.asUint8List();
-
-    final Size imageSize =
-        Size(image.width.toDouble(), image.height.toDouble());
-
-    final camera = cameras[_cameraIndex];
-    final imageRotation =
-        InputImageRotationValue.fromRawValue(camera.sensorOrientation);
-    if (imageRotation == null) return;
-
-    final inputImageFormat =
-        InputImageFormatValue.fromRawValue(image.format.raw);
-    if (inputImageFormat == null) return;
-
-    final planeData = image.planes.map(
-      (Plane plane) {
-        return InputImagePlaneMetadata(
-          bytesPerRow: plane.bytesPerRow,
-          height: plane.height,
-          width: plane.width,
+extension MLKitUtils on AnalysisImage {
+  InputImage toInputImage() {
+    return when(
+      nv21: (image) {
+        return InputImage.fromBytes(
+          bytes: image.bytes,
+          metadata: InputImageMetadata(
+            rotation: inputImageRotation,
+            format: InputImageFormat.nv21,
+            bytesPerRow: image.planes.first.bytesPerRow,
+            size: image.size,
+          ),
         );
       },
-    ).toList();
+      bgra8888: (image) {
+        return InputImage.fromBytes(
+          bytes: image.bytes,
+          metadata: InputImageMetadata(
+            rotation: inputImageRotation,
+            format: InputImageFormat.nv21,
+            bytesPerRow: image.planes.first.bytesPerRow,
+            size: image.size,
+          ),
+        );
+      },
+    )!;
+  }
 
-    final inputImageData = InputImageData(
-      size: imageSize,
-      imageRotation: imageRotation,
-      inputImageFormat: inputImageFormat,
-      planeData: planeData,
-    );
+  InputImageRotation get inputImageRotation =>
+      InputImageRotation.values.byName(rotation.name);
 
-    final inputImage =
-        InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
-
-    widget.onImage(inputImage);
+  InputImageFormat get inputImageFormat {
+    switch (format) {
+      case InputAnalysisImageFormat.bgra8888:
+        return InputImageFormat.bgra8888;
+      case InputAnalysisImageFormat.nv21:
+        return InputImageFormat.nv21;
+      default:
+        return InputImageFormat.yuv420;
+    }
   }
 }

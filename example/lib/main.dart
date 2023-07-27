@@ -16,7 +16,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  File? image;
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -24,52 +23,37 @@ class _MyAppState extends State<MyApp> {
         backgroundColor: Colors.white,
         body: Builder(builder: (context) {
           return Center(
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                if (image != null) Image.file(image!),
                 ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (BuildContext context) {
-                        return CameraScreen();
-                      }));
-                    },
-                    child: Text("scan with camera")),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      CameraScreen.page(ScannerType.mrz),
+                    );
+                  },
+                  child: const Text("Scan Only MRZ"),
+                ),
                 ElevatedButton(
-                    onPressed: () async {
-                      var mrzResult = await MrzWithGallery().pickImage();
-
-                      if (mrzResult != null) {
-                        showDialog(
-                          context: context,
-                          builder: (context) => Dialog(
-                            insetPadding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                    },
-                                    child: const Text('Reset Scanning'),
-                                  ),
-                                  Text('Name : ${mrzResult.givenNames}'),
-                                  Text('Gender : ${mrzResult.sex.name}'),
-                                  Text('CountryCode : ${mrzResult.countryCode}'),
-                                  Text('Date of Birth : ${mrzResult.birthDate}'),
-                                  Text('Expiry Date : ${mrzResult.expiryDate}'),
-                                  Text('DocNum : ${mrzResult.documentNumber}'),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    child: Text("scan with gallery")),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      CameraScreen.page(ScannerType.qrCode),
+                    );
+                  },
+                  child: const Text("Scan Only QR Code"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      CameraScreen.page(ScannerType.both),
+                    );
+                  },
+                  child: const Text("Scan Both"),
+                ),
               ],
             ),
           );

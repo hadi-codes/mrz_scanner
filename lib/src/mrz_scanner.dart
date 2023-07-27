@@ -1,54 +1,65 @@
+import 'package:camerawesome/camerawesome_plugin.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:mrz_scanner/mrz_scanner.dart';
 import 'camera_view.dart';
 import 'mrz_helper.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
+
+enum ScannerType { mrz, qrCode, both }
 
 class MRZScanner extends StatefulWidget {
   const MRZScanner({
     Key? controller,
-    required this.onSuccess,
-    this.initialDirection = CameraLensDirection.back,
-    this.showOverlay = true,
+    this.onMRZ,
+    this.onQrCode,
+    this.initialDirection = SensorPosition.back,
+    required this.scannerType,
   }) : super(key: controller);
-  final Function(MRZResult mrzResult) onSuccess;
-  final CameraLensDirection initialDirection;
-  final bool showOverlay;
+
+  final Function(MRZResult mrzResult)? onMRZ;
+
+  final Function(String? result)? onQrCode;
+
+  final ScannerType scannerType;
+
+  final SensorPosition initialDirection;
   @override
-  // ignore: library_private_types_in_public_api
   MRZScannerState createState() => MRZScannerState();
 }
 
 class MRZScannerState extends State<MRZScanner> {
   final TextRecognizer _textRecognizer = TextRecognizer();
+  final barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode]);
   bool _canProcess = true;
   bool _isBusy = false;
-
-  void resetScanning() => _isBusy = false;
 
   @override
   void dispose() async {
     _canProcess = false;
     _textRecognizer.close();
+    barcodeScanner.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return MRZCameraView(
-      showOverlay: widget.showOverlay,
       initialDirection: widget.initialDirection,
       onImage: _processImage,
     );
   }
 
-  void _parseScannedText(List<String> lines) {
+  bool _parseScannedText(List<String> lines) {
     try {
       final data = MRZParser.parse(lines);
       _isBusy = true;
-      widget.onSuccess(data);
+      widget.onMRZ?.call(data);
+      _isBusy = false;
+      return true;
     } catch (e) {
       _isBusy = false;
+      return false;
     }
   }
 
@@ -57,23 +68,43 @@ class MRZScannerState extends State<MRZScanner> {
     if (_isBusy) return;
     _isBusy = true;
 
-    final recognizedText = await _textRecognizer.processImage(inputImage);
-    String fullText = recognizedText.text;
-    String trimmedText = fullText.replaceAll(' ', '');
-    List allText = trimmedText.split('\n');
+    RecognizedText? recognizedText;
+    List<Barcode> barcode = [];
 
-    List<String> ableToScanText = [];
-    for (var e in allText) {
-      if (MRZHelper.testTextLine(e).isNotEmpty) {
-        ableToScanText.add(MRZHelper.testTextLine(e));
-      }
+    final scannerType = widget.scannerType;
+    if (scannerType == ScannerType.mrz || scannerType == ScannerType.both) {
+      recognizedText = await _textRecognizer.processImage(inputImage);
     }
-    List<String>? result = MRZHelper.getFinalListToParse([...ableToScanText]);
+    if (scannerType == ScannerType.qrCode || scannerType == ScannerType.both) {
+      barcode = await barcodeScanner.processImage(inputImage);
+    }
+    List<String>? result;
+    List<String>? resultReversed;
+
+    if (recognizedText != null) {
+      String fullText = recognizedText.text;
+      String trimmedText = fullText.replaceAll(' ', '');
+      List allText = trimmedText.split('\n');
+
+      List<String> ableToScanText = [];
+      for (var e in allText) {
+        if (MRZHelper.testTextLine(e).isNotEmpty) {
+          ableToScanText.add(MRZHelper.testTextLine(e));
+        }
+      }
+      result = MRZHelper.getFinalListToParse([...ableToScanText]);
+      resultReversed =
+          MRZHelper.getFinalListToParse([...ableToScanText.reversed]);
+    }
 
     if (result != null) {
-      _parseScannedText([...result]);
-    } else {
-      _isBusy = false;
+      final firstTry = _parseScannedText([...result]);
+      if (!firstTry && resultReversed != null) {
+        _parseScannedText([...resultReversed]);
+      }
+    } else if (barcode.isNotEmpty) {
+      widget.onQrCode?.call(barcode.first.rawValue);
     }
+    _isBusy = false;
   }
 }
