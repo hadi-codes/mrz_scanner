@@ -22,12 +22,16 @@ class _MRZCameraViewState extends State<MRZCameraView> {
   @override
   Widget build(BuildContext context) {
     return CameraAwesomeBuilder.previewOnly(
+      previewFit: CameraPreviewFit.fitWidth,
       onImageForAnalysis: analyzeImage,
       builder: (state, previewSize, previewRect) =>
           widget.layoutBuilder?.call(state, previewSize, previewRect) ??
           const SizedBox.shrink(),
       sensorConfig: SensorConfig.single(
-        sensor: Sensor.position(widget.initialDirection),
+        sensor: Sensor.position(
+          widget.initialDirection,
+        ),
+        aspectRatio: CameraAspectRatios.ratio_1_1,
       ),
       imageAnalysisConfig: AnalysisConfig(
         // Android specific options
