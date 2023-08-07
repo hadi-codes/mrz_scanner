@@ -72,7 +72,7 @@ extension MLKitUtils on AnalysisImage {
           bytes: image.bytes,
           metadata: InputImageMetadata(
             rotation: inputImageRotation,
-            format: InputImageFormat.nv21,
+            format: InputImageFormat.bgra8888,
             bytesPerRow: image.planes.first.bytesPerRow,
             size: image.size,
           ),
